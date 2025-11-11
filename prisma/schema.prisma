@@ -1,0 +1,30 @@
+generator client {
+  provider = "prisma-client-py"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id       Int    @id @default(autoincrement())
+  username String @unique
+  password String 
+  items    Item[]
+}
+
+model Item {
+  id Int
+  name String
+  path String
+  isFolder Boolean
+  size Int?
+  parentId Int?
+  parent Item? @relation("ItemHeirarchy", fields: [parentId], references: [id])
+  children Item[] @relation("ItemHeirarchy")
+  userId Int
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("items")
+}
