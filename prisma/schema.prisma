@@ -15,10 +15,10 @@ model User {
 }
 
 model Item {
-  id Int
+  id Int @id @default(autoincrement())
   name String
   path String
-  isFolder Boolean
+  isFolder Boolean @default(false)
   size Int?
   parentId Int?
   parent Item? @relation("ItemHeirarchy", fields: [parentId], references: [id])
