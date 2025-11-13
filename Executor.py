@@ -1,4 +1,5 @@
 import shutil
+import zipfile
 from pathlib import Path
 from typing import Optional
 
@@ -152,13 +153,42 @@ async def download_file(item_id: int, destination_path: str):
     item = await db.item.find_unique(
         where={"id": item_id}
     )
-    if not item or item.isFolder:
-        print("File not found or It is a folder")
+    if not item:
+        print("File/Folder not found")
         return
     source = Path(item.path)
     destination = Path(destination_path)
-    if not source.exists():
-        print("Source file not found in storage")
-        return
-    shutil.copy2(source, destination)
-    print(f"Succesfully Downloaded File: {item.name}")
+    if not item.isFolder:
+        if not source.exists():
+            print("Source file not found in storage")
+            return
+        shutil.copy2(source, destination)
+        print(f"Succesfully Downloaded File: {item.name}")
+    zip_file = destination / f"{item.name}.zip"
+    with zipfile.ZipFile(zip_file, "w", zipfile.ZIP_DEFLATED) as zipf:
+        await _add_folder_to_zip(source, zipf, base_path=source)
+
+async def _add_folder_to_zip(folder_path: Path, zipf: zipfile.ZipFile, base_path: Path):
+    for item in folder_path.iterdir():
+        if item.is_file():
+            rel_path = item.relative_to(base_path)
+            zipf.write(item, arcname=rel_path)
+        elif item.is_dir():
+            await _add_folder_to_zip(item, zipf, base_path)
+
+async def rename_item(item_id: int, new_name: str):
+    item = await db.item.find_unique(
+        where={"id": item_id}
+    )
+    if not item:
+        print("No file/folder found by that name")
+    old_path = Path(item.path)
+    new_path = old_path.parent / new_name
+    old_path.rename(new_path)
+    await db.item.update(
+        where={"id": item_id},
+        data={"name": new_name, "path": str(new_path)}
+    )
+    if item.isFolder:
+        await _update_children_paths(item.id, new_path)
+    print(f"Successfully renamed to: {item.name}")
