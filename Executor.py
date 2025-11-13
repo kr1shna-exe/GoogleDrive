@@ -147,3 +147,18 @@ async def delete_item(item_id: int):
         where={"id": item_id}
     )
     print(f"Deleted {item.name} Successfully!")
+
+async def download_file(item_id: int, destination_path: str):
+    item = await db.item.find_unique(
+        where={"id": item_id}
+    )
+    if not item or item.isFolder:
+        print("File not found or It is a folder")
+        return
+    source = Path(item.path)
+    destination = Path(destination_path)
+    if not source.exists():
+        print("Source file not found in storage")
+        return
+    shutil.copy2(source, destination)
+    print(f"Succesfully Downloaded File: {item.name}")
