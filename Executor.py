@@ -164,17 +164,19 @@ async def download_file(item_id: int, destination_path: str):
             return
         shutil.copy2(source, destination)
         print(f"Succesfully Downloaded File: {item.name}")
-    zip_file = destination / f"{item.name}.zip"
-    with zipfile.ZipFile(zip_file, "w", zipfile.ZIP_DEFLATED) as zipf:
-        await _add_folder_to_zip(source, zipf, base_path=source)
+    else:
+        zip_file = destination / f"{item.name}.zip"
+        with zipfile.ZipFile(zip_file, "w", zipfile.ZIP_DEFLATED) as zipf:
+            _add_folder_to_zip(source, zipf, base_path=source)
+        print(f"Succesfully Donwloaded the folder: {item.name}")
 
-async def _add_folder_to_zip(folder_path: Path, zipf: zipfile.ZipFile, base_path: Path):
+def _add_folder_to_zip(folder_path: Path, zipf: zipfile.ZipFile, base_path: Path):
     for item in folder_path.iterdir():
         if item.is_file():
             rel_path = item.relative_to(base_path)
             zipf.write(item, arcname=rel_path)
         elif item.is_dir():
-            await _add_folder_to_zip(item, zipf, base_path)
+            _add_folder_to_zip(item, zipf, base_path)
 
 async def rename_item(item_id: int, new_name: str):
     item = await db.item.find_unique(
@@ -182,6 +184,7 @@ async def rename_item(item_id: int, new_name: str):
     )
     if not item:
         print("No file/folder found by that name")
+        return
     old_path = Path(item.path)
     new_path = old_path.parent / new_name
     old_path.rename(new_path)
@@ -191,4 +194,51 @@ async def rename_item(item_id: int, new_name: str):
     )
     if item.isFolder:
         await _update_children_paths(item.id, new_path)
-    print(f"Successfully renamed to: {item.name}")
+    print(f"Successfully renamed to: {new_name}")
+
+async def copy_item(item_id: int, new_parent_id: int):
+    item = await db.item.find_unique(
+        where={"id": item_id}
+    )
+    if not item:
+        print("No item found..")
+        return
+    source = Path(item.path)
+    parent = await db.item.find_unique(
+        where={"id": new_parent_id}
+    )
+    destination = Path(parent.path)
+    new_path = destination / item.name
+    if not item.isFolder:
+        shutil.copy2(source, new_path)
+        await db.item.create(
+            data={
+                "name": item.name,
+                "path": str(new_path),
+                "isFolder": False,
+                "size": item.size,
+                "parentId": new_parent_id,
+                "userId": item.userId
+            }
+        )
+        print(f"Sucessfully copied file: {item.name}")
+    else:
+        shutil.copytree(source, new_path)
+        await db.item.create(
+            data={
+                "name": item.name,
+                "isFolder": True,
+                "path": new_path,
+                "size": item.size,
+                "parentId": new_parent_id,
+                "userId": item.userId
+            }
+        )
+        print(f"Sucessfully copied the folder: {item.name}")
+
+
+async def search_item(query: str, user_id: int):
+    items = await db.item.find_many(
+        where={"userId": user_id, "name": {"contains": query, "mode": "insensitive"}}
+    )
+    return items
