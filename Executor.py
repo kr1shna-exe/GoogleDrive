@@ -207,6 +207,9 @@ async def copy_item(item_id: int, new_parent_id: int):
     parent = await db.item.find_unique(
         where={"id": new_parent_id}
     )
+    if not parent or not parent.isFolder:
+        print("Invalid destination folder")
+        return
     destination = Path(parent.path)
     new_path = destination / item.name
     if not item.isFolder:
@@ -216,7 +219,6 @@ async def copy_item(item_id: int, new_parent_id: int):
                 "name": item.name,
                 "path": str(new_path),
                 "isFolder": False,
-                "size": item.size,
                 "parentId": new_parent_id,
                 "userId": item.userId
             }
@@ -224,18 +226,47 @@ async def copy_item(item_id: int, new_parent_id: int):
         print(f"Sucessfully copied file: {item.name}")
     else:
         shutil.copytree(source, new_path)
-        await db.item.create(
+        new_folder = await db.item.create(
             data={
                 "name": item.name,
+                "path": str(new_path),
                 "isFolder": True,
-                "path": new_path,
-                "size": item.size,
                 "parentId": new_parent_id,
                 "userId": item.userId
             }
         )
-        print(f"Sucessfully copied the folder: {item.name}")
+        await _copy_folder_children(item.id, new_folder.id, new_path)
+        print(f"Successfully copied: {item.name}")
 
+async def _copy_folder_children(old_folder_id: int, new_folder_id: int, new_folder_path: Path):
+    children = await db.item.find_many(
+        where={"parentId": old_folder_id}
+    )
+    for child in children:
+        child_path = new_folder_path / child.name
+        if child.isFolder:
+            new_child = await db.item.create(
+                data={
+                    "name": child.name,
+                    "path": str(child_path),
+                    "isFolder": True,
+                    "parentId": new_folder_id,
+                    "userId": child.userId
+                }
+            )
+            await _copy_folder_children(child.id, new_child.id, child_path)
+        else:
+            await db.item.create(
+                data={
+                    "name": child.name,
+                    "path": str(child_path),
+                    "isFolder": False,
+                    "size": child.size,
+                    "parentId": new_folder_id,
+                    "userId": child.userId
+
+                }
+            )
 
 async def search_item(query: str, user_id: int):
     items = await db.item.find_many(
