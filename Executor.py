@@ -272,4 +272,5 @@ async def search_item(query: str, user_id: int):
     items = await db.item.find_many(
         where={"userId": user_id, "name": {"contains": query, "mode": "insensitive"}}
     )
+    print("Search Result Successfull")
     return items

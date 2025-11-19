@@ -9,22 +9,22 @@ datasource db {
 
 model User {
   id       Int    @id @default(autoincrement())
-  username String @unique
-  password String 
+  email    String @unique
+  password String
   items    Item[]
 }
 
 model Item {
-  id Int @id @default(autoincrement())
-  name String
-  path String
+  id       Int     @id @default(autoincrement())
+  name     String
+  path     String
   isFolder Boolean @default(false)
-  size Int?
+  size     Int?
   parentId Int?
-  parent Item? @relation("ItemHeirarchy", fields: [parentId], references: [id])
-  children Item[] @relation("ItemHeirarchy")
-  userId Int
-  user User @relation(fields: [userId], references: [id])
+  parent   Item?   @relation("ItemHeirarchy", fields: [parentId], references: [id])
+  children Item[]  @relation("ItemHeirarchy")
+  userId   Int
+  user     User    @relation(fields: [userId], references: [id])
 
   @@map("items")
 }
